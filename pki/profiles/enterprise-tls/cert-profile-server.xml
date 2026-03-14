@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Certificate Profile: TLS Server — Enterprise
+  Purpose:     TLS server certificates (HTTPS, API endpoints)
+  Validity:    2 years (730 days)
+  Key usage:   digitalSignature, keyEncipherment
+  EKU:         serverAuth (1.3.6.1.5.5.7.3.1)
+  SAN:         DNS names required
+  EJBCA import: Admin UI → Certificate Profiles → Import
+-->
+<certificateprofile>
+  <version>46</version>
+  <type>1</type>
+
+  <!-- Validity -->
+  <validity>730d</validity>
+  <usecertificatevalidityoffset>false</usecertificatevalidityoffset>
+
+  <!-- Key algorithms -->
+  <availablekeyalgorithms>
+    <string>RSA</string>
+    <string>ECDSA</string>
+  </availablekeyalgorithms>
+  <availablebitlengths>
+    <int>2048</int>
+    <int>3072</int>
+    <int>4096</int>
+    <int>256</int>
+    <int>384</int>
+  </availablebitlengths>
+  <minimumavailablebitlength>2048</minimumavailablebitlength>
+  <maximumavailablebitlength>8192</maximumavailablebitlength>
+
+  <!-- Signature algorithm -->
+  <signingalgorithm>-1</signingalgorithm>
+
+  <!-- Key Usage -->
+  <usekeyusage>true</usekeyusage>
+  <keyusage>
+    <bool>true</bool>   <!-- digitalSignature -->
+    <bool>false</bool>  <!-- nonRepudiation -->
+    <bool>true</bool>   <!-- keyEncipherment -->
+    <bool>false</bool>  <!-- dataEncipherment -->
+    <bool>false</bool>  <!-- keyAgreement -->
+    <bool>false</bool>  <!-- keyCertSign -->
+    <bool>false</bool>  <!-- cRLSign -->
+    <bool>false</bool>  <!-- encipherOnly -->
+    <bool>false</bool>  <!-- decipherOnly -->
+  </keyusage>
+  <allowkeyusageoverride>false</allowkeyusageoverride>
+  <keyusageiscritical>true</keyusageiscritical>
+
+  <!-- Extended Key Usage -->
+  <useextendedkeyusage>true</useextendedkeyusage>
+  <extendedkeyusage>
+    <string>1.3.6.1.5.5.7.3.1</string>  <!-- serverAuth -->
+  </extendedkeyusage>
+  <extendedkeyusageiscritical>false</extendedkeyusageiscritical>
+
+  <!-- Subject Alternative Name -->
+  <usesubjectalternativename>true</usesubjectalternativename>
+  <subjectaltnamescritical>false</subjectaltnamescritical>
+
+  <!-- CRL Distribution Points -->
+  <usecrldistributionpoint>true</usecrldistributionpoint>
+  <crldistributionpointiscritical>false</crldistributionpointiscritical>
+  <usedefaultcrldistributionpoint>true</usedefaultcrldistributionpoint>
+
+  <!-- OCSP -->
+  <useocspnocheck>false</useocspnocheck>
+  <useauthorityinformationaccess>true</useauthorityinformationaccess>
+  <usedefaultocspservicelocator>true</usedefaultocspservicelocator>
+
+  <!-- Authority Key Identifier -->
+  <useauthoritykeyidentifier>true</useauthoritykeyidentifier>
+  <authoritykeyidentifiercritical>false</authoritykeyidentifiercritical>
+
+  <!-- Subject Key Identifier -->
+  <usesubjectkeyidentifier>true</usesubjectkeyidentifier>
+  <subjectkeyidentifiercritical>false</subjectkeyidentifiercritical>
+
+  <!-- Basic Constraints — NOT a CA -->
+  <usebasicconstraints>true</usebasicconstraints>
+  <basicconstraintscritical>true</basicconstraintscritical>
+  <usebasicconstraintsiscritical>true</usebasicconstraintsiscritical>
+  <usepathlenconstraint>false</usepathlenconstraint>
+
+  <!-- Allowed CAs -->
+  <availablecas>
+    <int>-1</int>  <!-- Any CA -->
+  </availablecas>
+
+  <!-- Publish & Store -->
+  <usecertificatetransparencyincerts>false</usecertificatetransparencyincerts>
+
+  <!-- Description -->
+  <description>Enterprise TLS Server Certificate — 2 year validity, RSA/ECDSA, serverAuth EKU</description>
+</certificateprofile>

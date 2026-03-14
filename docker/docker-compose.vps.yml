@@ -1,0 +1,43 @@
+# =============================================================================
+# EJBCA PKI Lab — VPS / Production Overrides
+# Usage: docker compose -f docker-compose.yml -f docker-compose.vps.yml up -d
+# =============================================================================
+
+version: "3.9"
+
+services:
+
+  ejbca-node1:
+    # In production: do NOT expose EJBCA ports directly — only via Nginx
+    ports: []
+    environment:
+      LOG_LEVEL_APP: WARN
+      LOG_LEVEL_SERVER: ERROR
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+    restart: always
+
+  ejbca-database:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+    # Optionally bind DB to specific IP on multi-NIC servers
+    # ports:
+    #   - "127.0.0.1:3306:3306"
+
+  nginx:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M

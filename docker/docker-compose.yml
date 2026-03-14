@@ -1,0 +1,125 @@
+# =============================================================================
+# EJBCA PKI Lab — Docker Compose Stack
+# Services: MariaDB | EJBCA CE | Nginx Reverse Proxy
+# =============================================================================
+
+version: "3.9"
+
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "20m"
+    max-file: "5"
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # DATABASE — MariaDB
+  # ---------------------------------------------------------------------------
+  ejbca-database:
+    image: ${DB_IMAGE:-mariadb}:${DB_VERSION:-10.11}
+    container_name: ejbca-database
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME:-ejbca}
+      MYSQL_USER: ${DB_USER:-ejbca}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - ${DB_DATA_DIR:-./data/mariadb}:/var/lib/mysql
+      - ./configs/mariadb/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - ejbca-internal
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    logging: *default-logging
+
+  # ---------------------------------------------------------------------------
+  # PKI ENGINE — EJBCA Community Edition
+  # ---------------------------------------------------------------------------
+  ejbca-node1:
+    image: ${EJBCA_IMAGE:-keyfactor/ejbca-ce}:${EJBCA_VERSION:-latest}
+    container_name: ejbca-node1
+    restart: unless-stopped
+    depends_on:
+      ejbca-database:
+        condition: service_healthy
+    environment:
+      # Database
+      DATABASE_JDBC_URL: "jdbc:mariadb://ejbca-database:3306/${DB_NAME:-ejbca}?characterEncoding=UTF-8"
+      DATABASE_USER: ${DB_USER:-ejbca}
+      DATABASE_PASSWORD: ${DB_PASSWORD}
+      # TLS & Startup
+      TLS_SETUP_ENABLED: ${TLS_SETUP_ENABLED:-true}
+      # Logging
+      LOG_LEVEL_APP: ${LOG_LEVEL_APP:-INFO}
+      LOG_LEVEL_SERVER: ${LOG_LEVEL_SERVER:-WARN}
+      LOG_STORAGE_LOCATION: "/opt/keyfactor/appserver/standalone/log"
+      # Hostname
+      PROXY_HTTP_BIND: "0.0.0.0"
+    volumes:
+      - ${EJBCA_DATA_DIR:-./data/ejbca}:/mnt/persistent:rw
+      - ./configs/ejbca:/mnt/ejbca-custom:ro
+    ports:
+      # Expose directly for dev; in production, only Nginx talks to EJBCA
+      - "${EJBCA_HTTP_PORT:-8080}:8080"
+      - "${EJBCA_HTTPS_PORT:-8443}:8443"
+      - "${EJBCA_HTTPS_RA_PORT:-8442}:8442"
+    networks:
+      - ejbca-internal
+      - ejbca-public
+    healthcheck:
+      test: ["CMD", "curl", "-sk", "https://localhost:8443/ejbca/publicweb/healthcheck/ejbcaok"]
+      interval: 30s
+      timeout: 10s
+      retries: 15
+      start_period: 120s
+    logging: *default-logging
+
+  # ---------------------------------------------------------------------------
+  # REVERSE PROXY — Nginx
+  # Terminates external TLS and forwards to EJBCA
+  # ---------------------------------------------------------------------------
+  nginx:
+    image: nginx:alpine
+    container_name: ejbca-nginx
+    restart: unless-stopped
+    depends_on:
+      ejbca-node1:
+        condition: service_healthy
+    ports:
+      - "${NGINX_HTTP_PORT:-80}:80"
+      - "${NGINX_HTTPS_PORT:-443}:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./data/nginx/certs:/etc/nginx/certs:ro
+      - ./data/nginx/logs:/var/log/nginx
+    networks:
+      - ejbca-public
+    environment:
+      - EJBCA_HOSTNAME=${EJBCA_HOSTNAME:-ejbca.lab.local}
+    logging: *default-logging
+
+# =============================================================================
+# NETWORKS
+# =============================================================================
+networks:
+  ejbca-internal:
+    driver: bridge
+    internal: true        # Database not reachable from outside
+  ejbca-public:
+    driver: bridge
+
+# =============================================================================
+# VOLUMES (named, for easy backup)
+# =============================================================================
+volumes:
+  ejbca-data:
+    driver: local
+  mariadb-data:
+    driver: local

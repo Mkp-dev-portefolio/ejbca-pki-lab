@@ -1,0 +1,50 @@
+# =============================================================================
+# EJBCA PKI Lab — .gitignore
+# IMPORTANT: Never commit real credentials, certificates, or client data
+# =============================================================================
+
+# --- Environment files (contain passwords and client data) ---
+docker/.env
+clients/**/.env
+!clients/template-*/.env    # Templates are safe to commit
+
+# --- Generated CA certificates and keys (NEVER commit real certs) ---
+pki/output/
+*.pem
+*.pem.bak
+*.p12
+*.pfx
+*.key
+*.crt
+*.cer
+*.der
+*.csr
+
+# --- Runtime data (bind-mounted volumes) ---
+docker/data/
+backups/
+
+# --- Nginx TLS certificates ---
+docker/data/nginx/certs/
+
+# --- IDE / OS ---
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# --- Logs ---
+*.log
+logs/
+
+# --- Terraform state (contains secrets) ---
+iac/terraform/*.tfstate
+iac/terraform/*.tfstate.backup
+iac/terraform/.terraform/
+iac/terraform/.terraform.lock.hcl
+
+# --- Ansible vault ---
+iac/ansible/vault_pass.txt
+iac/ansible/group_vars/all/vault.yml

@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Certificate Profile: DevOps Short-lived
+  Purpose:     CI/CD pipelines, Vault-issued service identity, ACME
+  Validity:    1 day (1d) — short-lived, no CRL/OCSP dependency needed
+  Key usage:   digitalSignature
+  EKU:         clientAuth + serverAuth (service-to-service mTLS)
+  Notes:
+    - No CRL/OCSP needed: cert expires so fast revocation is moot
+    - Works with Vault PKI secrets engine (EJBCA as upstream CA)
+    - Works with cert-manager (Kubernetes) via EJBCA issuer plugin
+-->
+<certificateprofile>
+  <version>46</version>
+  <type>1</type>
+
+  <validity>1d</validity>
+
+  <availablekeyalgorithms>
+    <string>RSA</string>
+    <string>ECDSA</string>
+  </availablekeyalgorithms>
+  <availablebitlengths>
+    <int>2048</int>
+    <int>256</int>
+    <int>384</int>
+  </availablebitlengths>
+  <minimumavailablebitlength>2048</minimumavailablebitlength>
+
+  <usekeyusage>true</usekeyusage>
+  <keyusage>
+    <bool>true</bool>   <!-- digitalSignature -->
+    <bool>false</bool>
+    <bool>false</bool>
+    <bool>false</bool>
+    <bool>false</bool>
+    <bool>false</bool>
+    <bool>false</bool>
+    <bool>false</bool>
+    <bool>false</bool>
+  </keyusage>
+  <keyusageiscritical>true</keyusageiscritical>
+
+  <useextendedkeyusage>true</useextendedkeyusage>
+  <extendedkeyusage>
+    <string>1.3.6.1.5.5.7.3.1</string>   <!-- serverAuth -->
+    <string>1.3.6.1.5.5.7.3.2</string>   <!-- clientAuth -->
+  </extendedkeyusage>
+  <extendedkeyusageiscritical>false</extendedkeyusageiscritical>
+
+  <usesubjectalternativename>true</usesubjectalternativename>
+
+  <!-- CRL/OCSP disabled — cert is short-lived -->
+  <usecrldistributionpoint>false</usecrldistributionpoint>
+  <useauthorityinformationaccess>false</useauthorityinformationaccess>
+
+  <useauthoritykeyidentifier>true</useauthoritykeyidentifier>
+  <usesubjectkeyidentifier>true</usesubjectkeyidentifier>
+  <usebasicconstraints>true</usebasicconstraints>
+  <basicconstraintscritical>true</basicconstraintscritical>
+
+  <!-- Override validity at enrollment time (Vault / cert-manager) -->
+  <allowvalidityoverride>true</allowvalidityoverride>
+  <allowextensionoverride>false</allowextensionoverride>
+
+  <availablecas>
+    <int>-1</int>
+  </availablecas>
+
+  <description>DevOps Short-lived Certificate — 1 day validity, serverAuth+clientAuth, ACME/Vault/cert-manager</description>
+</certificateprofile>
