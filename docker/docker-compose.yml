@@ -3,7 +3,6 @@
 # Services: MariaDB | EJBCA CE | Nginx Reverse Proxy
 # =============================================================================
 
-version: "3.9"
 
 x-logging: &default-logging
   driver: "json-file"
@@ -15,6 +14,7 @@ services:
 
   # ---------------------------------------------------------------------------
   # DATABASE — MariaDB
+  # Named volume used (not bind-mount) for full native I/O speed on macOS
   # ---------------------------------------------------------------------------
   ejbca-database:
     image: ${DB_IMAGE:-mariadb}:${DB_VERSION:-10.11}
@@ -26,15 +26,14 @@ services:
       MYSQL_USER: ${DB_USER:-ejbca}
       MYSQL_PASSWORD: ${DB_PASSWORD}
     volumes:
-      - ${DB_DATA_DIR:-./data/mariadb}:/var/lib/mysql
-      - ./configs/mariadb/init:/docker-entrypoint-initdb.d:ro
+      - mariadb-data:/var/lib/mysql
     networks:
       - ejbca-internal
     healthcheck:
-      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      test: ["CMD-SHELL", "mariadb -u$$MYSQL_USER -p$$MYSQL_PASSWORD -e 'SELECT 1' 2>/dev/null"]
       interval: 10s
       timeout: 5s
-      retries: 10
+      retries: 15
       start_period: 30s
     logging: *default-logging
 
@@ -55,6 +54,10 @@ services:
       DATABASE_PASSWORD: ${DB_PASSWORD}
       # TLS & Startup
       TLS_SETUP_ENABLED: ${TLS_SETUP_ENABLED:-true}
+      # JVM entropy source — use non-blocking /dev/urandom to avoid 300s startup timeout
+      JAVA_SECURITY_USE_URANDOM: ${JAVA_SECURITY_USE_URANDOM:-force}
+      # Extend WildFly deployment stability timeout (default 300s too short on cold start)
+      APPSERVER_DEPLOYMENT_TIMEOUT: ${APPSERVER_DEPLOYMENT_TIMEOUT:-600}
       # Logging
       LOG_LEVEL_APP: ${LOG_LEVEL_APP:-INFO}
       LOG_LEVEL_SERVER: ${LOG_LEVEL_SERVER:-WARN}
@@ -62,18 +65,21 @@ services:
       # Hostname
       PROXY_HTTP_BIND: "0.0.0.0"
     volumes:
-      - ${EJBCA_DATA_DIR:-./data/ejbca}:/mnt/persistent:rw
-      - ./configs/ejbca:/mnt/ejbca-custom:ro
+      - ejbca-data:/mnt/persistent:rw
+      # Override standalone.conf to set -Djboss.as.management.blocking.timeout=600
+      - ./configs/standalone.conf:/opt/keyfactor/wildfly-35.0.1.Final/bin/standalone.conf:ro
     ports:
-      # Expose directly for dev; in production, only Nginx talks to EJBCA
-      - "${EJBCA_HTTP_PORT:-8080}:8080"
-      - "${EJBCA_HTTPS_PORT:-8443}:8443"
-      - "${EJBCA_HTTPS_RA_PORT:-8442}:8442"
+      # PROXY_HTTP_BIND=0.0.0.0 → EJBCA runs on proxy listeners 8081 (HTTP) and 8082 (HTTPS proxy)
+      # 8081 = plain HTTP proxy listener (EJBCA behind reverse proxy)
+      # 8082 = HTTPS proxy listener (TLS terminated upstream by Nginx)
+      - "${EJBCA_HTTP_PORT:-8081}:8081"
+      - "${EJBCA_HTTPS_PORT:-8082}:8082"
     networks:
       - ejbca-internal
       - ejbca-public
     healthcheck:
-      test: ["CMD", "curl", "-sk", "https://localhost:8443/ejbca/publicweb/healthcheck/ejbcaok"]
+      # EJBCA with PROXY_HTTP_BIND uses proxy listener on 8081 (HTTP)
+      test: ["CMD", "curl", "-sf", "http://localhost:8081/ejbca/publicweb/healthcheck/ejbcahealth"]
       interval: 30s
       timeout: 10s
       retries: 15
