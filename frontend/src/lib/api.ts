@@ -18,7 +18,7 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
 // Health
 export const api = {
   health: {
-    get: () => apiFetch<{ status: string; source: string; timestamp: string; detail?: string }>('/api/health'),
+    get: () => apiFetch<import('@/types/ejbca').HealthStatus>('/api/health'),
     vas: () => apiFetch<{ vas: Array<{ name: string; sync: boolean; error: boolean }>; source: string; timestamp: string }>('/api/health/vas'),
   },
 
