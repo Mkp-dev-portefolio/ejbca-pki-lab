@@ -1,0 +1,22 @@
+version: '3.9'
+
+# Development override — mock mode only, no EJBCA required.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+#
+# Or for pure local dev (no Docker):
+#   cd backend && USE_MOCK=true npm start
+#   cd frontend && NEXT_PUBLIC_API_URL=http://localhost:3001 npm run dev
+
+services:
+  ejbca:
+    profiles: ["live"]   # excluded unless --profile live is set
+
+  backend:
+    environment:
+      - USE_MOCK=true
+      - EJBCA_URL=     # not used in mock mode
+    depends_on: []
+
+  frontend:
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:3001

@@ -1,0 +1,73 @@
+version: '3.9'
+
+services:
+  # ─────────────────────────────────────────────
+  # EJBCA Community Edition
+  # ─────────────────────────────────────────────
+  ejbca:
+    image: keyfactor/ejbca-ce:latest
+    container_name: ejbca
+    hostname: ejbca.lab.local
+    ports:
+      - "8080:8080"   # HTTP (health check, OCSP)
+      - "8443:8443"   # HTTPS (admin UI, REST API with client cert)
+    environment:
+      - TLS_SETUP_ENABLED=true
+    volumes:
+      - ejbca_data:/mnt/persistent
+    networks:
+      - pki-net
+    healthcheck:
+      test: ["CMD", "curl", "-fk", "https://localhost:8443/ejbca/publicweb/healthcheck/ejbcahealth"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+  # ─────────────────────────────────────────────
+  # Backend API Proxy (Express)
+  # ─────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ejbca-backend
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - EJBCA_URL=https://ejbca.lab.local:8443
+      - USE_MOCK=false
+      - NODE_TLS_REJECT_UNAUTHORIZED=0
+    depends_on:
+      - ejbca
+    networks:
+      - pki-net
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────
+  # Frontend (Next.js)
+  # ─────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: ejbca-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:3001
+    depends_on:
+      - backend
+    networks:
+      - pki-net
+    restart: unless-stopped
+
+volumes:
+  ejbca_data:
+    name: ejbca_data
+
+networks:
+  pki-net:
+    name: pki-net
+    driver: bridge
