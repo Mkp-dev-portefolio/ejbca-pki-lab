@@ -49,6 +49,83 @@ export const api = {
       }),
   },
 
+  iot: {
+    devices: {
+      list: (params?: Record<string, string>) => {
+        const qs = params ? new URLSearchParams(params).toString() : '';
+        return apiFetch<{ devices: import('@/types/ejbca').IoTDevice[]; total: number; source: string }>(
+          `/api/iot/devices${qs ? `?${qs}` : ''}`
+        );
+      },
+      get: (id: string) =>
+        apiFetch<import('@/types/ejbca').IoTDevice & { source: string }>(
+          `/api/iot/devices/${encodeURIComponent(id)}`
+        ),
+      create: (body: Partial<import('@/types/ejbca').IoTDevice>) =>
+        apiFetch<import('@/types/ejbca').IoTDevice & { source: string }>('/api/iot/devices', {
+          method: 'POST',
+          body: JSON.stringify(body),
+        }),
+      update: (id: string, body: Partial<import('@/types/ejbca').IoTDevice>) =>
+        apiFetch<import('@/types/ejbca').IoTDevice & { source: string }>(
+          `/api/iot/devices/${encodeURIComponent(id)}`,
+          { method: 'PUT', body: JSON.stringify(body) }
+        ),
+      delete: (id: string) =>
+        apiFetch<{ deleted: boolean; device_id: string; source: string }>(
+          `/api/iot/devices/${encodeURIComponent(id)}`,
+          { method: 'DELETE' }
+        ),
+    },
+    protocols: {
+      list: () =>
+        apiFetch<{ protocols: import('@/types/ejbca').IoTProtocol[]; total: number; source: string }>(
+          '/api/iot/protocols'
+        ),
+      get: (id: string) =>
+        apiFetch<import('@/types/ejbca').IoTProtocol & { source: string }>(
+          `/api/iot/protocols/${encodeURIComponent(id)}`
+        ),
+    },
+  },
+
+  clm: {
+    policies: () =>
+      apiFetch<{ policies: import('@/types/ejbca').ClmPolicy[]; total: number; source: string }>(
+        '/api/clm/policies'
+      ),
+    status: () =>
+      apiFetch<{
+        summary: import('@/types/ejbca').ClmSummary;
+        statuses: import('@/types/ejbca').ClmDeviceStatus[];
+        source: string;
+        checked_at: string;
+      }>('/api/clm/status'),
+    deviceStatus: (id: string) =>
+      apiFetch<{ device_id: string; clm: import('@/types/ejbca').ClmDeviceStatus['clm']; source: string; checked_at: string }>(
+        `/api/clm/status/${encodeURIComponent(id)}`
+      ),
+    renew: (id: string) =>
+      apiFetch<{ queued: boolean; device_id: string; renewal_protocol: string; estimated_completion: string; source: string }>(
+        `/api/clm/renew/${encodeURIComponent(id)}`,
+        { method: 'POST' }
+      ),
+  },
+
+  aws: {
+    kms: () => apiFetch<import('@/types/ejbca').AwsKmsConfig & { source: string }>('/api/aws/kms'),
+    kmsKeys: (params?: Record<string, string>) => {
+      const qs = params ? new URLSearchParams(params).toString() : '';
+      return apiFetch<{ keys: import('@/types/ejbca').KmsKey[]; total: number; source: string }>(
+        `/api/aws/kms/keys${qs ? `?${qs}` : ''}`
+      );
+    },
+    hsm: () =>
+      apiFetch<{ clusters: import('@/types/ejbca').HsmCluster[]; total: number; source: string }>(
+        '/api/aws/hsm'
+      ),
+  },
+
   endentities: {
     list: (params?: Record<string, string>) => {
       const qs = params ? new URLSearchParams(params).toString() : '';
