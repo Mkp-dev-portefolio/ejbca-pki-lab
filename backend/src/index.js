@@ -7,6 +7,9 @@ const healthRoutes = require('./routes/health');
 const casRoutes = require('./routes/cas');
 const certRoutes = require('./routes/certificates');
 const eeRoutes = require('./routes/endentities');
+const iotRoutes = require('./routes/iot');
+const clmRoutes = require('./routes/clm');
+const awsRoutes = require('./routes/awsKms');
 
 const app = express();
 
@@ -19,6 +22,9 @@ app.use('/api/health', healthRoutes);
 app.use('/api/cas', casRoutes);
 app.use('/api/certificates', certRoutes);
 app.use('/api/endentities', eeRoutes);
+app.use('/api/iot', iotRoutes);
+app.use('/api/clm', clmRoutes);
+app.use('/api/aws', awsRoutes);
 
 // Root info
 app.get('/', (req, res) => {

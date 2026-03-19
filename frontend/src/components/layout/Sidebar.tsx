@@ -11,17 +11,40 @@ import {
   ScrollText,
   Activity,
   Lock,
+  Cpu,
+  Radio,
+  RefreshCw,
+  Key,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-const navItems = [
-  { href: '/', icon: LayoutDashboard, label: 'Dashboard' },
-  { href: '/cas', icon: Shield, label: 'Certificate Authorities' },
-  { href: '/certificates', icon: FileCheck, label: 'Certificates' },
-  { href: '/endentities', icon: Users, label: 'End Entities' },
-  { href: '/enrollment', icon: FilePlus, label: 'Enrollment' },
-  { href: '/crl', icon: ScrollText, label: 'CRL Management' },
-  { href: '/health', icon: Activity, label: 'Health Monitor' },
+const navSections = [
+  {
+    label: 'PKI Core',
+    items: [
+      { href: '/', icon: LayoutDashboard, label: 'Dashboard' },
+      { href: '/cas', icon: Shield, label: 'Certificate Authorities' },
+      { href: '/certificates', icon: FileCheck, label: 'Certificates' },
+      { href: '/endentities', icon: Users, label: 'End Entities' },
+      { href: '/enrollment', icon: FilePlus, label: 'Enrollment' },
+      { href: '/crl', icon: ScrollText, label: 'CRL Management' },
+      { href: '/health', icon: Activity, label: 'Health Monitor' },
+    ],
+  },
+  {
+    label: 'IoT Fleet',
+    items: [
+      { href: '/iot-devices', icon: Cpu, label: 'IoT Devices' },
+      { href: '/iot-protocols', icon: Radio, label: 'IoT Protocols' },
+      { href: '/clm', icon: RefreshCw, label: 'Cert Lifecycle (CLM)' },
+    ],
+  },
+  {
+    label: 'Cloud Security',
+    items: [
+      { href: '/aws-kms', icon: Key, label: 'AWS KMS / CloudHSM' },
+    ],
+  },
 ];
 
 export function Sidebar() {
@@ -41,25 +64,34 @@ export function Sidebar() {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-3 py-4 space-y-1">
-        {navItems.map(({ href, icon: Icon, label }) => {
-          const active = href === '/' ? pathname === '/' : pathname.startsWith(href);
-          return (
-            <Link
-              key={href}
-              href={href}
-              className={cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
-                active
-                  ? 'bg-blue-600/20 text-blue-400 border border-blue-600/30'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-              )}
-            >
-              <Icon className="w-4 h-4 flex-shrink-0" />
-              {label}
-            </Link>
-          );
-        })}
+      <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto">
+        {navSections.map(section => (
+          <div key={section.label}>
+            <div className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-600">
+              {section.label}
+            </div>
+            <div className="space-y-0.5">
+              {section.items.map(({ href, icon: Icon, label }) => {
+                const active = href === '/' ? pathname === '/' : pathname.startsWith(href);
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    className={cn(
+                      'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                      active
+                        ? 'bg-blue-600/20 text-blue-400 border border-blue-600/30'
+                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                    )}
+                  >
+                    <Icon className="w-4 h-4 flex-shrink-0" />
+                    {label}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
 
       {/* Footer */}

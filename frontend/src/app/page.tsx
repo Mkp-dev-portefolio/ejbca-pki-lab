@@ -1,14 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Shield, FileCheck, AlertTriangle, XCircle, Activity } from 'lucide-react';
+import { Shield, FileCheck, AlertTriangle, XCircle, Activity, Cpu, WifiOff, RefreshCw } from 'lucide-react';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { Badge, statusBadge } from '@/components/ui/Badge';
 import { StatusIndicator } from '@/components/ui/StatusIndicator';
 import { api } from '@/lib/api';
 import { formatDate, timeUntil, daysUntil, truncateDN } from '@/lib/utils';
-import type { CA, Certificate, HealthStatus } from '@/types/ejbca';
+import type { CA, Certificate, HealthStatus, ClmSummary } from '@/types/ejbca';
 
 function StatsCard({
   icon: Icon,
@@ -47,6 +47,7 @@ export default function DashboardPage() {
   const [cas, setCAs] = useState<CA[]>([]);
   const [certs, setCerts] = useState<Certificate[]>([]);
   const [health, setHealth] = useState<HealthStatus | null>(null);
+  const [clmSummary, setClmSummary] = useState<ClmSummary | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -54,11 +55,13 @@ export default function DashboardPage() {
       api.cas.list(),
       api.certificates.search({}),
       api.health.get(),
+      api.clm.status(),
     ])
-      .then(([casData, certsData, healthData]) => {
+      .then(([casData, certsData, healthData, clmData]) => {
         setCAs(casData.cas);
         setCerts(certsData.certificates);
         setHealth(healthData);
+        setClmSummary(clmData.summary);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -107,6 +110,48 @@ export default function DashboardPage() {
           <StatsCard icon={AlertTriangle} label="Expiring ≤30 Days" value={expiringSoon} color="amber" />
           <StatsCard icon={XCircle} label="Revoked" value={revokedCerts} color="red" />
         </div>
+
+        {/* IoT Fleet Strip */}
+        {clmSummary && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Card className="flex items-center gap-3">
+              <div className="p-2.5 rounded-lg bg-cyan-500/20">
+                <Cpu className="w-5 h-5 text-cyan-400" />
+              </div>
+              <div>
+                <p className="text-xl font-bold text-slate-100">{clmSummary.total}</p>
+                <p className="text-xs text-slate-400">IoT Devices</p>
+              </div>
+            </Card>
+            <Card className="flex items-center gap-3">
+              <div className="p-2.5 rounded-lg bg-red-500/20">
+                <WifiOff className="w-5 h-5 text-red-400" />
+              </div>
+              <div>
+                <p className="text-xl font-bold text-red-400">{clmSummary.offline_devices}</p>
+                <p className="text-xs text-slate-400">Devices Offline</p>
+              </div>
+            </Card>
+            <Card className="flex items-center gap-3">
+              <div className="p-2.5 rounded-lg bg-blue-500/20">
+                <RefreshCw className="w-5 h-5 text-blue-400" />
+              </div>
+              <div>
+                <p className="text-xl font-bold text-blue-400">{clmSummary.pending_renewal}</p>
+                <p className="text-xs text-slate-400">Pending Renewal</p>
+              </div>
+            </Card>
+            <Card className="flex items-center gap-3">
+              <div className="p-2.5 rounded-lg bg-red-500/20">
+                <AlertTriangle className="w-5 h-5 text-red-400" />
+              </div>
+              <div>
+                <p className="text-xl font-bold text-red-400">{clmSummary.critical}</p>
+                <p className="text-xs text-slate-400">CLM Critical</p>
+              </div>
+            </Card>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* CA Status */}
