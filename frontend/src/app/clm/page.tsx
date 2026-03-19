@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { api } from '@/lib/api';
 import { ClmDeviceStatus, ClmSummary, ClmPolicy, ClmPriority, ClmAction } from '@/types/ejbca';
 import { formatDate, formatDateTime } from '@/lib/utils';
@@ -52,15 +52,20 @@ export default function ClmPage() {
   const [selected, setSelected] = useState<ClmDeviceStatus | null>(null);
   const [renewingId, setRenewingId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'status' | 'policies'>('status');
+  const [error, setError] = useState('');
 
   function loadAll() {
     setLoading(true);
-    Promise.all([api.clm.status(), api.clm.policies()]).then(([clmData, policyData]) => {
-      setSummary(clmData.summary);
-      setStatuses(clmData.statuses);
-      setCheckedAt(clmData.checked_at);
-      setPolicies(policyData.policies);
-    }).finally(() => setLoading(false));
+    setError('');
+    Promise.all([api.clm.status(), api.clm.policies()])
+      .then(([clmData, policyData]) => {
+        setSummary(clmData.summary);
+        setStatuses(clmData.statuses);
+        setCheckedAt(clmData.checked_at);
+        setPolicies(policyData.policies);
+      })
+      .catch(e => setError(e.message || 'Failed to load CLM data'))
+      .finally(() => setLoading(false));
   }
 
   useEffect(() => { loadAll(); }, []);
@@ -70,13 +75,16 @@ export default function ClmPage() {
     api.clm.renew(deviceId).finally(() => setRenewingId(null));
   }
 
-  const filtered = statuses.filter(s => {
+  const filtered = useMemo(() => statuses.filter(s => {
     if (filterPriority && s.clm.priority !== filterPriority) return false;
     if (filterPolicy && s.clm_policy_id !== filterPolicy) return false;
     return true;
-  });
+  }), [statuses, filterPriority, filterPolicy]);
 
-  const needsAction = statuses.filter(s => s.clm.action_needed !== 'NONE' && s.clm.action_needed !== 'MONITOR');
+  const needsAction = useMemo(
+    () => statuses.filter(s => s.clm.action_needed !== 'NONE' && s.clm.action_needed !== 'MONITOR'),
+    [statuses]
+  );
 
   return (
     <div className="p-6 space-y-6">
@@ -91,6 +99,13 @@ export default function ClmPage() {
           <RefreshCw className="w-4 h-4 mr-2" /> Refresh
         </Button>
       </div>
+
+      {error && (
+        <div className="flex items-center gap-3 bg-red-950/40 border border-red-800/50 rounded-lg px-4 py-3 text-red-300 text-sm">
+          <span>⚠ {error}</span>
+          <button onClick={loadAll} className="ml-auto text-red-400 hover:text-red-200 underline text-xs">Retry</button>
+        </div>
+      )}
 
       {/* Summary strip */}
       {summary && (
@@ -249,15 +264,17 @@ export default function ClmPage() {
                           <Td className="text-xs text-slate-400 max-w-xs truncate">{s.clm.reason}</Td>
                           <Td>
                             {canRenew && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleRenew(s.device_id)}
-                                disabled={renewingId === s.device_id}
-                              >
-                                <RotateCcw className="w-3 h-3 mr-1" />
-                                {renewingId === s.device_id ? '…' : 'Renew'}
-                              </Button>
+                              <div onClick={e => e.stopPropagation()}>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleRenew(s.device_id)}
+                                  disabled={renewingId === s.device_id}
+                                >
+                                  <RotateCcw className="w-3 h-3 mr-1" />
+                                  {renewingId === s.device_id ? '…' : 'Renew'}
+                                </Button>
+                              </div>
                             )}
                           </Td>
                         </Tr>

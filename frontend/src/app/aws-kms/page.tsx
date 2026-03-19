@@ -36,11 +36,14 @@ export default function AwsKmsPage() {
   const [selected, setSelected] = useState<KmsKey | null>(null);
 
   useEffect(() => {
-    api.aws.kms().then(d => {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { source, ...rest } = d as any;
-      setConfig(rest);
-    }).finally(() => setLoading(false));
+    api.aws.kms()
+      .then(d => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { source, ...rest } = d as any;
+        setConfig(rest);
+      })
+      .catch(() => setConfig(null))
+      .finally(() => setLoading(false));
   }, []);
 
   if (loading) {
@@ -48,7 +51,17 @@ export default function AwsKmsPage() {
   }
 
   if (!config) {
-    return <div className="p-6 text-red-400 text-center py-20">Failed to load KMS configuration</div>;
+    return (
+      <div className="p-6 text-center py-20">
+        <div className="text-red-400 mb-3">Failed to load KMS configuration</div>
+        <button
+          onClick={() => { setLoading(true); }}
+          className="text-blue-400 hover:text-blue-300 text-sm underline"
+        >
+          Retry
+        </button>
+      </div>
+    );
   }
 
   const hsmKeys = config.kms_keys.filter(k => k.origin === 'AWS_CLOUDHSM');

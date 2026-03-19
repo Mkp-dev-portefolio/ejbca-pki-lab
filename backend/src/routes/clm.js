@@ -21,9 +21,20 @@ router.get('/policies/:id', (req, res) => {
 // ── CLM Status Overview ────────────────────────────────────────────────────
 // Computes per-device cert health based on CRL/OCSP state and CLM policy
 
+/** Derive cert_status from cert_expiry and CLM policy renewal threshold — always fresh */
+function deriveCertStatus(device, policy) {
+  if (!device.cert_expiry) return device.cert_status; // no expiry → use stored value (e.g. REVOKED)
+  const days = Math.ceil((new Date(device.cert_expiry).getTime() - Date.now()) / 86400000);
+  if (days < 0) return 'EXPIRED';
+  const threshold = policy ? policy.renewal_threshold_days : 30;
+  if (days <= threshold) return 'EXPIRING_SOON';
+  return 'ACTIVE';
+}
+
 function computeClmStatus(device) {
   const now = Date.now();
   const policy = mockPolicies.find(p => p.id === device.clm_policy_id);
+  const certStatus = deriveCertStatus(device, policy);
 
   // No cert yet (provisioning)
   if (!device.certificate_serial) {
@@ -31,7 +42,7 @@ function computeClmStatus(device) {
   }
 
   // Expired cert
-  if (device.cert_status === 'EXPIRED') {
+  if (certStatus === 'EXPIRED') {
     return {
       action_needed: 'RENEW',
       priority: 'CRITICAL',
@@ -86,7 +97,7 @@ function computeClmStatus(device) {
   }
 
   // Expiring soon
-  if (device.cert_status === 'EXPIRING_SOON') {
+  if (certStatus === 'EXPIRING_SOON') {
     return {
       action_needed: policy?.auto_renew ? 'AUTO_RENEW' : 'RENEW',
       priority: 'MEDIUM',
@@ -107,19 +118,22 @@ function computeClmStatus(device) {
 
 // GET /api/clm/status — full CLM status for all devices
 router.get('/status', (req, res) => {
-  const statuses = mockDevices.map(device => ({
-    device_id: device.device_id,
-    name: device.name,
-    type: device.type,
-    status: device.status,
-    cert_status: device.cert_status,
-    cert_expiry: device.cert_expiry,
-    ca_name: device.ca_name,
-    clm_policy_id: device.clm_policy_id,
-    hsm_backed: device.hsm_backed,
-    last_seen: device.last_seen,
-    clm: computeClmStatus(device),
-  }));
+  const statuses = mockDevices.map(device => {
+    const policy = mockPolicies.find(p => p.id === device.clm_policy_id);
+    return {
+      device_id: device.device_id,
+      name: device.name,
+      type: device.type,
+      status: device.status,
+      cert_status: deriveCertStatus(device, policy),
+      cert_expiry: device.cert_expiry,
+      ca_name: device.ca_name,
+      clm_policy_id: device.clm_policy_id,
+      hsm_backed: device.hsm_backed,
+      last_seen: device.last_seen,
+      clm: computeClmStatus(device),
+    };
+  });
 
   const summary = {
     total: statuses.length,

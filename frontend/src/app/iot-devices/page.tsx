@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { api } from '@/lib/api';
 import { IoTDevice, IoTDeviceStatus, CertStatus } from '@/types/ejbca';
 import { formatDate, formatDateTime, daysUntil } from '@/lib/utils';
@@ -51,7 +51,7 @@ function statusBadge(status: IoTDeviceStatus) {
     PROVISIONING: { variant: 'warning', label: 'Provisioning' },
     ERROR: { variant: 'danger', label: 'Error' },
   };
-  const { variant, label } = map[status] ?? { variant: 'default', label: status };
+  const { variant, label } = map[status] ?? { variant: 'neutral', label: status };
   return <Badge variant={variant as any}>{label}</Badge>;
 }
 
@@ -63,36 +63,42 @@ function certBadge(status: CertStatus | null) {
     EXPIRED: { variant: 'danger', label: 'Expired' },
     EXPIRING_SOON: { variant: 'warning', label: 'Expiring Soon' },
   };
-  const { variant, label } = map[status] ?? { variant: 'default', label: status };
+  const { variant, label } = map[status] ?? { variant: 'neutral', label: status };
   return <Badge variant={variant as any}>{label}</Badge>;
 }
 
 export default function IoTDevicesPage() {
   const [devices, setDevices] = useState<IoTDevice[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [selected, setSelected] = useState<IoTDevice | null>(null);
   const [filterStatus, setFilterStatus] = useState('');
   const [filterProtocol, setFilterProtocol] = useState('');
 
   function load() {
     setLoading(true);
-    const params: Record<string, string> = {};
-    if (filterStatus) params.status = filterStatus;
-    if (filterProtocol) params.protocol = filterProtocol;
+    setError('');
     api.iot.devices
-      .list(params)
+      .list()
       .then(r => setDevices(r.devices))
+      .catch(e => setError(e.message || 'Failed to load devices'))
       .finally(() => setLoading(false));
   }
 
-  useEffect(() => {
-    load();
-  }, [filterStatus, filterProtocol]);
+  useEffect(() => { load(); }, []);
 
-  const online = devices.filter(d => d.status === 'ONLINE').length;
-  const offline = devices.filter(d => d.status === 'OFFLINE').length;
-  const expiring = devices.filter(d => d.cert_status === 'EXPIRING_SOON').length;
-  const hsmBacked = devices.filter(d => d.hsm_backed).length;
+  const filtered = useMemo(() => {
+    return devices.filter(d => {
+      if (filterStatus && d.status !== filterStatus) return false;
+      if (filterProtocol && d.protocol !== filterProtocol) return false;
+      return true;
+    });
+  }, [devices, filterStatus, filterProtocol]);
+
+  const online = useMemo(() => devices.filter(d => d.status === 'ONLINE').length, [devices]);
+  const offline = useMemo(() => devices.filter(d => d.status === 'OFFLINE').length, [devices]);
+  const expiring = useMemo(() => devices.filter(d => d.cert_status === 'EXPIRING_SOON').length, [devices]);
+  const hsmBacked = useMemo(() => devices.filter(d => d.hsm_backed).length, [devices]);
 
   return (
     <div className="p-6 space-y-6">
@@ -107,6 +113,13 @@ export default function IoTDevicesPage() {
           </Button>
         </div>
       </div>
+
+      {error && (
+        <div className="flex items-center gap-3 bg-red-950/40 border border-red-800/50 rounded-lg px-4 py-3 text-red-300 text-sm">
+          <span>⚠ {error}</span>
+          <button onClick={load} className="ml-auto text-red-400 hover:text-red-200 underline text-xs">Retry</button>
+        </div>
+      )}
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -192,7 +205,7 @@ export default function IoTDevicesPage() {
       <Card>
         <CardHeader>
           <CardTitle>
-            Devices <span className="text-slate-500 font-normal text-sm">({devices.length})</span>
+            Devices <span className="text-slate-500 font-normal text-sm">({filtered.length})</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
@@ -217,14 +230,14 @@ export default function IoTDevicesPage() {
                     Loading…
                   </Td>
                 </Tr>
-              ) : devices.length === 0 ? (
+              ) : filtered.length === 0 ? (
                 <Tr>
                   <Td colSpan={9} className="text-center py-10 text-slate-500">
                     No devices found
                   </Td>
                 </Tr>
               ) : (
-                devices.map(d => (
+                filtered.map(d => (
                   <Tr key={d.device_id} onClick={() => setSelected(d)}>
                     <Td>
                       <div className="font-medium text-white">{d.name}</div>

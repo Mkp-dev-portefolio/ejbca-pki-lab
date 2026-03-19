@@ -12,7 +12,7 @@ module.exports = [
     offline_capable: false,
     standard: 'OASIS MQTT 5.0',
     use_case: 'Fleet telemetry, OTA commands, real-time monitoring',
-    devices_count: 3,
+    devices_count: 2,
     description:
       'Primary protocol for vehicle fleet telemetry. Mutual TLS with device certificates issued by IoTIssuingCA. QoS 1/2 for reliable delivery.',
     best_practices: [
@@ -35,7 +35,7 @@ module.exports = [
     offline_capable: true,
     standard: 'RFC 7252 + RFC 9147',
     use_case: 'Low-power sensors, road-side units, constrained devices',
-    devices_count: 2,
+    devices_count: 1,
     description:
       'Used for constrained IoT sensors that cannot run full TLS stack. DTLS 1.3 with ECDSA P-256 certs minimises handshake overhead. CRL cached locally for offline operation.',
     best_practices: [

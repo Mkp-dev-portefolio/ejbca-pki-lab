@@ -18,10 +18,14 @@ function securityBadge(security: string) {
 export default function IoTProtocolsPage() {
   const [protocols, setProtocols] = useState<IoTProtocol[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [selected, setSelected] = useState<IoTProtocol | null>(null);
 
   useEffect(() => {
-    api.iot.protocols.list().then(r => setProtocols(r.protocols)).finally(() => setLoading(false));
+    api.iot.protocols.list()
+      .then(r => setProtocols(r.protocols))
+      .catch(e => setError(e.message || 'Failed to load protocols'))
+      .finally(() => setLoading(false));
   }, []);
 
   const certRequired = protocols.filter(p => p.cert_required).length;
@@ -35,6 +39,10 @@ export default function IoTProtocolsPage() {
           Supported communication protocols — security posture, certificate requirements &amp; best practices
         </p>
       </div>
+
+      {error && (
+        <div className="bg-red-950/40 border border-red-800/50 rounded-lg px-4 py-3 text-red-300 text-sm">⚠ {error}</div>
+      )}
 
       {/* Summary */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
