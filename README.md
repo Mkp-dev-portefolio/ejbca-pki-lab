@@ -1,152 +1,232 @@
-# EJBCA PKI Lab
+# ejbca-pki-lab
 
-**Open-source, fully containerized PKI lab built on EJBCA Community Edition.**
-Designed for PKI engineers to spin up, customize, and deliver enterprise-grade PKI to any client — from a single `make` command.
+> A production-grade, 3-tier PKI lab built on EJBCA — because `openssl req` is not how enterprise PKI works.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![EJBCA CE](https://img.shields.io/badge/EJBCA-Community%20Edition-orange)](https://hub.docker.com/r/keyfactor/ejbca-ce)
-[![Docker](https://img.shields.io/badge/Docker-Compose-blue)](https://docs.docker.com/compose/)
+[![Docker](https://img.shields.io/badge/Docker-required-2496ED?logo=docker)](https://www.docker.com/)
+[![EJBCA](https://img.shields.io/badge/EJBCA-Community-orange)](https://www.ejbca.org/)
+[![PKI](https://img.shields.io/badge/PKI-Enterprise-green)]()
+
+---
+
+## Why This Exists
+
+Most PKI labs on GitHub hand you a shell script that calls `openssl` a few times, produces a Root CA and a leaf cert, and calls it done.
+
+That is not how enterprise PKI works.
+
+In production environments — banks, automotive networks, critical infrastructure — a PKI is a layered architecture: offline Root CAs that never touch the network, Intermediate CAs that bridge policy domains, online Issuing CAs handling high-volume certificate requests, and dedicated OCSP/CRL responders that validators query at runtime. Getting any of it wrong is a compliance incident. Getting it very wrong is a breach.
+
+This lab replicates that architecture using **EJBCA Community**, the same open-source engine that powers some of the largest PKIs in the world, so you can test, break, and understand enterprise certificate infrastructure without a commercial license and without touching production.
 
 ---
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────┐
-│                   EJBCA PKI Lab                     │
-│                                                     │
-│  Tier 1: Root CA          (offline after init)      │
-│      │                                              │
-│  Tier 2: Policy CA        (online, policy control)  │
-│      │                                              │
-│  Tier 3: Issuing CA(s)    (online, issues certs)    │
-│      ├── Issuing-TLS-CA   (Enterprise TLS/mTLS)     │
-│      ├── Issuing-IoT-CA   (Device Identity)         │
-│      └── Issuing-DevOps-CA (Short-lived / ACME)     │
-│                                                     │
-│  Stack: EJBCA CE  +  MariaDB  +  Nginx              │
-└─────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                        TRUST HIERARCHY                              │
+│                                                                     │
+│   ┌───────────────────────────────────────────────────────────┐    │
+│   │                  ROOT CA (Offline)                        │    │
+│   │         Self-signed · Air-gapped simulation               │    │
+│   │         4096-bit RSA / P-384 ECDSA                        │    │
+│   └──────────────────────────┬────────────────────────────────┘    │
+│                              │ signs                               │
+│   ┌──────────────────────────▼────────────────────────────────┐    │
+│   │               INTERMEDIATE / POLICY CA                    │    │
+│   │          Policy constraints · Name constraints             │    │
+│   │          Certificate Policy OIDs                           │    │
+│   └──────┬──────────────────────────────────────┬─────────────┘    │
+│          │ signs                                │ signs            │
+│   ┌──────▼──────────────┐          ┌────────────▼──────────────┐   │
+│   │    ISSUING CA (TLS) │          │   ISSUING CA (Client/S&E) │   │
+│   │  Online · EJBCA     │          │   Online · EJBCA          │   │
+│   └──────┬──────────────┘          └────────────┬──────────────┘   │
+│          │                                      │                  │
+│   ┌──────▼──────────────────────────────────────▼──────────────┐   │
+│   │             REVOCATION INFRASTRUCTURE                      │   │
+│   │    OCSP Responder (delegated)  ·  CRL Distribution Points  │   │
+│   │    OCSP Stapling support       ·  Delta CRL publishing      │   │
+│   └─────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
-Full architecture details: [docs/architecture.md](docs/architecture.md)
+All components run as Docker containers on a single host. The Root CA container is designed to be stopped after signing the Intermediate CA — simulating the offline/air-gapped posture required by most enterprise PKI policies and regulatory frameworks.
 
 ---
 
-## Quick Start (5 minutes)
+## Prerequisites
 
-**Prerequisites:** Docker Desktop (or Docker Engine + Compose), `make`, `git`
+| Dependency | Version | Purpose |
+|---|---|---|
+| Docker | 20.10+ | Container runtime |
+| Docker Compose | v2+ | Multi-container orchestration |
+| Java (JDK) | 17+ | EJBCA CLI tooling |
+| openssl | 3.x | Key generation and cert inspection |
+| curl | any | OCSP query testing |
+| ~8 GB disk space | — | EJBCA images + volumes |
+
+---
+
+## Quick Start
 
 ```bash
-# 1. Clone the repo
-git clone https://github.com/YOUR_USERNAME/ejbca-pki-lab.git
+# Clone the repository
+git clone https://github.com/Mkp-dev-portefolio/ejbca-pki-lab.git
 cd ejbca-pki-lab
 
-# 2. Configure environment
-cp docker/.env.example docker/.env
-# Edit docker/.env with your organization details
+# Bring up the full PKI stack
+docker compose up -d
 
-# 3. Start the stack
-make up
+# Wait for EJBCA to initialize (~60–90 seconds on first run)
+docker compose logs -f ejbca | grep "EJBCA started successfully"
 
-# 4. Initialize 3-tier PKI hierarchy
-make init
+# Initialize the Root CA (offline simulation)
+./scripts/init-root-ca.sh
 
-# 5. Get SuperAdmin credentials
-make superadmin-p12
-# Import superadmin.p12 into Firefox to access Admin UI
+# Sign the Intermediate CA certificate
+./scripts/sign-intermediate-ca.sh
 
-# 6. Access EJBCA Admin UI
-# https://localhost:8443/ejbca/adminweb
+# Bring the Issuing CAs online
+./scripts/init-issuing-cas.sh
+
+# Start OCSP and CRL services
+./scripts/init-revocation.sh
+
+# Verify the full chain is healthy
+./scripts/verify-chain.sh
 ```
 
-Full guide: [docs/getting-started.md](docs/getting-started.md)
+> **First time?** See [`docs/SETUP.md`](docs/SETUP.md) for a step-by-step walkthrough with screenshots.
 
 ---
 
-## Client Deployment
+## Lab Components
 
-Each client gets an isolated PKI configuration:
+### Containers
 
-```bash
-# Create a new enterprise client
-make client CLIENT=acme-corp TEMPLATE=enterprise
+| Container | Role | Port |
+|---|---|---|
+| `ejbca-root` | Root CA (offline simulation) | 8080 (admin UI) |
+| `ejbca-issuing` | Issuing CA — TLS + Client | 8443 (RA/admin UI) |
+| `ejbca-ocsp` | OCSP Responder | 8080 |
+| `ejbca-va` | Validation Authority | 8080 |
+| `database` | Internal MariaDB | 3306 (internal only) |
 
-# Edit client config
-nano clients/acme-corp/.env
+### Certificate Profiles Included
 
-# Deploy
-make deploy CLIENT=acme-corp
-
-# Export for VPS delivery
-make export CLIENT=acme-corp
-```
-
-Available templates: `enterprise` | `iot` | `devops`
-
-Full guide: [docs/client-customization.md](docs/client-customization.md)
-
----
-
-## Available Commands
-
-| Command | Description |
-|---|---|
-| `make up` | Start the lab (dev mode) |
-| `make up-vps` | Start in VPS/production mode |
-| `make init` | Bootstrap 3-tier PKI hierarchy |
-| `make client CLIENT=x` | Create a new client environment |
-| `make deploy CLIENT=x` | Deploy a client config |
-| `make export CLIENT=x` | Package for VPS delivery |
-| `make backup` | Backup all PKI data |
-| `make shell` | Shell into EJBCA container |
-| `make ca-list` | List all CAs |
-| `make crl-update` | Update all CRLs |
-| `make status` | Container health status |
-| `make logs` | Tail all logs |
+- `TLS_SERVER` — TLS server certificates (SAN-enforced, 397-day max)
+- `TLS_CLIENT` — Mutual TLS client authentication
+- `CODE_SIGNING` — Software signing (EKU enforced)
+- `EMAIL_SMIME` — S/MIME email signing and encryption
+- `OCSP_SIGNER` — OCSP response signing (id-pkix-ocsp-nocheck)
+- `CA_CROSS_CERT` — Cross-certification test profile
 
 ---
 
-## Client Segments
+## What You Can Test Here
 
-| Segment | Issuing CA | Profiles | Protocols |
-|---|---|---|---|
-| **Enterprise TLS/mTLS** | Issuing-TLS-CA | TLS Server 2yr, mTLS Client 1yr | HTTPS, REST API |
-| **IoT Device Identity** | Issuing-IoT-CA | Device 5yr | EST (RFC 7030), CMP, SCEP |
-| **DevOps / Cloud-Native** | Issuing-DevOps-CA | Short-lived 1d | ACME, Vault, cert-manager |
+1. **Certificate lifecycle end-to-end** — Request, issue, renew, revoke, and verify certificates through the full EJBCA workflow, including RA-based enrollment and SCEP/EST/CMP protocol simulation.
+
+2. **Revocation infrastructure behavior** — Publish CRLs on schedule, query OCSP in real time, and observe how relying parties respond to revoked certificates. Test delta CRLs and OCSP caching edge cases.
+
+3. **Policy enforcement** — Configure certificate policies, name constraints, and EKU restrictions and observe EJBCA enforcing or rejecting requests that violate them.
+
+4. **Chain building and path validation** — Build complex chains, introduce cross-certificates, and test how validators handle multiple trust paths to the same Root CA.
+
+5. **Crypto-agility transitions** — Run a parallel RSA/ECDSA hierarchy and simulate a root rollover, including issuing transitional cross-certs and testing validator behavior during the overlap window.
+
+6. **DORA-relevant scenarios** — Test the ICT risk management controls that directly touch PKI: certificate inventory/discovery, revocation SLAs, CA key ceremony procedures, and backup/restore of CA keys and configuration.
+
+7. **Weak configuration detection** — Deliberately misconfigure key sizes, extensions, or revocation endpoints and verify that your scanning tooling (e.g., [`pki-pentest-toolkit`](https://github.com/ismailzemouri/pki-pentest-toolkit)) correctly identifies the issues.
+
+8. **High-availability and failover** — Simulate CA downtime and observe how OCSP stapling, cached CRLs, and RA failover affect certificate validation in dependent services.
 
 ---
 
-## Repository Structure
+## Use Cases
+
+### This lab is useful if you are…
+
+**A PKI engineer** who wants a realistic sandbox to test configuration changes before promoting them to production — without the risk of touching live CAs or waiting for a change management window.
+
+**A DORA compliance team** preparing for audit. The EU Digital Operational Resilience Act (DORA) has explicit requirements around ICT risk management and third-party dependencies. This lab lets you walk through certificate-related controls, generate evidence, and test your incident response procedures in a safe environment.
+
+**A security architect** designing a new PKI for a financial institution, automotive network, or critical infrastructure deployment. Use this lab to validate your architecture decisions before committing to hardware HSMs and expensive CA licenses.
+
+**A red team or penetration tester** who wants a live target for PKI-specific attack scenarios. Pair with [`pki-pentest-toolkit`](https://github.com/ismailzemouri/pki-pentest-toolkit) for a complete attack/defense environment.
+
+**A student or security professional** pursuing CISSP, CEH, or vendor-specific PKI certifications who wants hands-on time with enterprise-grade CA software, not just textbook diagrams.
+
+---
+
+## DORA & Regulatory Alignment
+
+The lab is structured to support testing against the following frameworks:
+
+| Framework | Relevant Articles | Coverage |
+|---|---|---|
+| **DORA (EU 2022/2554)** | Art. 9 (ICT risk), Art. 10 (detection), Art. 11 (response/recovery) | Certificate lifecycle, revocation SLA, key backup |
+| **NIS2 Directive** | Art. 21 (security measures) | CA availability, cryptographic hygiene |
+| **ETSI EN 319 401** | General Policy Requirements for TSPs | Certificate policy, CP/CPS structure |
+| **RFC 5280** | Internet X.509 PKI | Full chain validation, extension enforcement |
+| **CAB Forum Baseline Requirements** | TLS certificate requirements | SAN enforcement, validity periods |
+
+---
+
+## Project Structure
 
 ```
 ejbca-pki-lab/
-├── Makefile                     # All lab commands
-├── docker/
-│   ├── docker-compose.yml       # Main stack
-│   ├── docker-compose.vps.yml   # VPS overrides
-│   ├── .env.example             # Environment template
-│   └── nginx/                   # Reverse proxy config
-├── pki/
-│   ├── scripts/                 # CA init scripts (01→04)
-│   └── profiles/                # Certificate profiles (XML)
-│       ├── enterprise-tls/
-│       ├── iot-device/
-│       └── devops-short-lived/
-├── clients/                     # Per-client configurations
-│   ├── template-enterprise/
-│   ├── template-iot/
-│   └── template-devops/
-└── docs/                        # Full documentation
+├── docker-compose.yml          # Full stack definition
+├── config/
+│   ├── root-ca/                # Root CA profiles and policies
+│   ├── intermediate-ca/        # Intermediate CA configuration
+│   ├── issuing-ca/             # Issuing CA profiles (TLS, client, S/MIME)
+│   └── revocation/             # OCSP and CRL publisher config
+├── scripts/
+│   ├── init-root-ca.sh
+│   ├── sign-intermediate-ca.sh
+│   ├── init-issuing-cas.sh
+│   ├── init-revocation.sh
+│   └── verify-chain.sh
+├── tests/
+│   ├── chain-validation/       # Chain building test cases
+│   ├── revocation/             # OCSP and CRL test scenarios
+│   └── policy-enforcement/     # Certificate profile violation tests
+└── docs/
+    ├── SETUP.md
+    ├── ARCHITECTURE.md
+    └── DORA-MAPPING.md
 ```
+
+---
+
+## Contributing
+
+Contributions are welcome, especially:
+
+- Additional certificate profiles (IoT/automotive, document signing, government eID)
+- Automated test cases for specific compliance scenarios
+- HSM simulation integration (SoftHSM2)
+- EST/ACME protocol enrollment examples
+- CI pipeline for automated chain validation
+
+Please open an issue before submitting a large pull request so we can discuss the approach.
 
 ---
 
 ## License
 
-MIT — free to use, modify, and build client solutions on top of.
-
-EJBCA Community Edition is licensed under [LGPL v2.1](https://github.com/Keyfactor/ejbca-ce/blob/main/LICENSE).
+MIT — see [LICENSE](LICENSE) for details.
 
 ---
 
-*Built by [@YOUR_USERNAME](https://github.com/YOUR_USERNAME) — open-source PKI lab for professionals.*
+## About MYKEYPAIR
+
+This lab is maintained by [Ismail Zemouri](https://github.com/ismailzemouri), CISSP and founder of **MYKEYPAIR** — a PKI consulting practice specializing in enterprise certificate infrastructure, regulatory compliance (DORA, NIS2, eIDAS), and automotive/smart city PKI architecture.
+
+If you're building or auditing PKI for a financial institution, critical infrastructure operator, or automotive/smart city deployment and need hands-on expertise:
+
+🌐 [mykeypair.be](https://mykeypair.be) · 📧 [contact@mykeypair.be](mailto:contact@mykeypair.be)
